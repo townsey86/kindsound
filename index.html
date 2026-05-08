@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>KindSound Engine</title>
+
+<style>
+
+body {
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  color:white;
+  font-family:Arial;
+  text-align:center;
+  padding:40px;
+}
+
+h1 { font-size:48px; }
+
+textarea {
+  width:320px;
+  height:100px;
+  padding:12px;
+  border-radius:12px;
+  border:none;
+  margin-top:15px;
+}
+
+select, button {
+  margin-top:15px;
+  padding:12px;
+  border-radius:12px;
+  border:none;
+  font-size:16px;
+}
+
+button {
+  background:#22c55e;
+  color:black;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+#meter {
+  width:300px;
+  height:25px;
+  background:#1e293b;
+  border-radius:20px;
+  margin:20px auto;
+  overflow:hidden;
+}
+
+#fill {
+  height:100%;
+  width:0%;
+  background:#22c55e;
+  transition:0.3s;
+}
+
+.visual {
+  width:120px;
+  height:120px;
+  margin:25px auto;
+  border-radius:50%;
+  background: radial-gradient(circle, #22c55e, transparent);
+  animation:pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform:scale(1); opacity:0.4; }
+  50% { transform:scale(1.25); opacity:1; }
+  100% { transform:scale(1); opacity:0.4; }
+}
+
+.slider {
+  width:200px;
+  margin-top:15px;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>💌 KindSound Engine</h1>
+
+<textarea id="msg" placeholder="Type something kind..."></textarea>
+
+<br>
+
+<select id="style">
+  <option value="lofi">🌊 Lo-Fi</option>
+  <option value="edm">🎉 EDM</option>
+  <option value="ambient">😌 Ambient</option>
+  <option value="hiphop">🥁 Hip Hop</option>
+</select>
+
+<br>
+
+<button onclick="generate()">Generate</button>
+
+<br><br>
+
+<label>🔊 Volume</label><br>
+<input type="range" min="0" max="1" step="0.01"
+value="0.8" class="slider"
+oninput="setVolume(this.value)">
+
+<div class="visual"></div>
+
+<div id="meter">
+  <div id="fill"></div>
+</div>
+
+<p id="score">0%</p>
+
+<script src="https://unpkg.com/tone"></script>
+
+<script>
+
+let master, limiter
+let drumLoop, chordLoop, melodyLoop
+let drum, chord, melody
+
+let kindness = 0
+let config = {}
+
+// ======================
+// VOLUME
+// ======================
+
+function setVolume(v) {
+  if (master) master.gain.rampTo(v, 0.1)
+}
+
+// ======================
+// CLEANUP
+// ======================
+
+function cleanup() {
+
+  Tone.Transport.stop()
+  Tone.Transport.cancel()
+
+  if (drumLoop) drumLoop.dispose()
+  if (chordLoop) chordLoop.dispose()
+  if (melodyLoop) melodyLoop.dispose()
+
+  if (drum) drum.dispose()
+  if (chord) chord.dispose()
+  if (melody) melody.dispose()
+
+}
+
+// ======================
+// MAIN
+// ======================
+
+window.generate = async function() {
+
+  await Tone.start()
+
+  if (!master) {
+    master = new Tone.Gain(0.8)
+    limiter = new Tone.Limiter(-6)
+    master.connect(limiter)
+    limiter.toDestination()
+  }
+
+  cleanup()
+
+  // ======================
+  // INPUT + KINDNESS
+  // ======================
+
+  const msg = document.getElementById("msg").value || "be kind"
+  const style = document.getElementById("style").value
+
+  const words = ["love","kind","great","amazing","support","appreciate"]
+
+  kindness =
+    Math.min(100,
+      msg.length +
+      (msg.includes("!") ? 15 : 0)
+    )
+
+  words.forEach(w => {
+    if (msg.toLowerCase().includes(w)) kindness += 10
+  })
+
+  kindness = Math.min(100, kindness)
+
+  document.getElementById("fill").style.width = kindness + "%"
+  document.getElementById("score").innerText = kindness + "%"
+
+  Tone.Transport.bpm.value = 60 + kindness
+
+  // ======================
+  // STYLE ENGINE (REAL DIFFERENCE FIX)
+  // ======================
+
+  if (style === "lofi") {
+    config = {
+      notes: ["C3","D3","E3","G3"],
+      chords: [["C3","E3","G3"],["A2","C3","E3"]],
+      drumChance: 0.3,
+      melodySpeed: "4n",
+      chordSpeed: "1m"
+    }
+  }
+
+  if (style === "edm") {
+    config = {
+      notes: ["C5","D5","E5","G5","A5"],
+      chords: [["A3","C4","E4"],["F3","A3","C4"]],
+      drumChance: 0.9,
+      melodySpeed: "16n",
+      chordSpeed: "2n"
+    }
+  }
+
+  if (style === "ambient") {
+    config = {
+      notes: ["C2","D2","E2","G2"],
+      chords: [["C2","G2","B2"]],
+      drumChance: 0.05,
+      melodySpeed: "2n",
+      chordSpeed: "2m"
+    }
+  }
+
+  if (style === "hiphop") {
+    config = {
+      notes: ["C3","D3","F3","G3","A3"],
+      chords: [["F3","A3","C4"],["G2","B2","D3"]],
+      drumChance: 0.6,
+      melodySpeed: "8n",
+      chordSpeed: "1m"
+    }
+  }
+
+  // ======================
+  // INSTRUMENTS (different engines per style)
+  // ======================
+
+  drum = new Tone.MembraneSynth().connect(master)
+  chord = new Tone.PolySynth().connect(master)
+  melody = new Tone.Synth().connect(master)
+
+  // ======================
+  // DRUMS
+  // ======================
+
+  drumLoop = new Tone.Loop(time => {
+
+    if (Math.random() < config.drumChance) {
+      drum.triggerAttackRelease("C1","8n",time)
+    }
+
+  }, "4n")
+
+  // ======================
+  // CHORDS
+  // ======================
+
+  let i = 0
+
+  chordLoop = new Tone.Loop(time => {
+
+    let c = config.chords[i % config.chords.length]
+
+    chord.triggerAttackRelease(c,"2n",time)
+
+    i++
+
+  }, config.chordSpeed)
+
+  // ======================
+  // MELODY
+  // ======================
+
+  melodyLoop = new Tone.Loop(time => {
+
+    let pool =
+      kindness > 70
+        ? config.notes.concat(["D5","F5"])
+        : config.notes
+
+    let note =
+      pool[Math.floor(Math.random()*pool.length)]
+
+    melody.triggerAttackRelease(note,"8n",time)
+
+  }, config.melodySpeed)
+
+  // ======================
+  // EVOLUTION (kindness grows over time)
+  // ======================
+
+  Tone.Transport.scheduleRepeat(() => {
+
+    kindness = Math.min(100, kindness + 0.15)
+
+    Tone.Transport.bpm.rampTo(50 + kindness, 2)
+
+  }, "2n")
+
+  // ======================
+  // START
+  // ======================
+
+  drumLoop.start(0)
+  chordLoop.start(0)
+  melodyLoop.start(0)
+
+  Tone.Transport.start()
+
+}
+
+</script>
+
+</body>
+</html>
